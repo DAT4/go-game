@@ -5,8 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/gorilla/websocket"
-	"github.com/hajimehoshi/ebiten/ebitenutil"
 	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2/inpututil"
 	"golang.org/x/image/colornames"
 	"image/png"
 	_ "image/png"
@@ -16,6 +17,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"time"
 )
 
 type Sprite struct {
@@ -32,10 +34,13 @@ type Player struct {
 }
 
 type Game struct {
-	PlayerOne Player
-	PlayerTwo Player
-	Conn      *websocket.Conn
-	Num       string
+	PlayerOne  Player
+	PlayerTwo  Player
+	Conn       *websocket.Conn
+	Num        string
+	State      int
+	Message    string
+	MsgHistory string
 }
 
 func (g *Game) MovePlayerOne() {
@@ -43,26 +48,49 @@ func (g *Game) MovePlayerOne() {
 		g.PlayerOne.position.Translate(-1, 0)
 		g.PlayerOne.face = g.PlayerOne.left
 		g.Conn.WriteMessage(websocket.TextMessage, []byte(g.Num+"left"))
-	}
+	} else
 	if ebiten.IsKeyPressed(ebiten.KeyJ) {
 		g.PlayerOne.position.Translate(0, 1)
 		g.PlayerOne.face = g.PlayerOne.down
 		g.Conn.WriteMessage(websocket.TextMessage, []byte(g.Num+"down"))
-	}
+	} else
 	if ebiten.IsKeyPressed(ebiten.KeyK) {
 		g.PlayerOne.position.Translate(0, -1)
 		g.PlayerOne.face = g.PlayerOne.up
 		g.Conn.WriteMessage(websocket.TextMessage, []byte(g.Num+"up"))
-	}
+	} else
 	if ebiten.IsKeyPressed(ebiten.KeyL) {
 		g.PlayerOne.position.Translate(1, 0)
 		g.PlayerOne.face = g.PlayerOne.right
 		g.Conn.WriteMessage(websocket.TextMessage, []byte(g.Num+"right"))
+	} else
+	if repeatingKeyPressed(ebiten.KeySemicolon) {
+		g.State = 1
+		g.Message = ""
 	}
 }
 
 func (g *Game) Update() error {
-	g.MovePlayerOne()
+	if g.State == 0 {
+		g.MovePlayerOne()
+	} else {
+		g.Message += string(ebiten.InputChars())
+		if repeatingKeyPressed(ebiten.KeyEnter) {
+			g.State = 0
+			err := g.Conn.WriteMessage(websocket.TextMessage, []byte("msg: "+g.Message))
+			g.Message = ""
+			if err != nil {
+				fmt.Println(err)
+			}
+		}
+		if repeatingKeyPressed(ebiten.KeyBackspace) {
+			if ebiten.IsKeyPressed(ebiten.KeyBackspace) {
+				if len(g.Message) >= 1 {
+					g.Message = g.Message[:len(g.Message)-1]
+				}
+			}
+		}
+	}
 	return nil
 }
 
@@ -92,19 +120,84 @@ func (g *Game) Draw(screen *ebiten.Image) {
 	screen.Fill(colornames.Green)
 	screen.DrawImage(g.PlayerTwo.face, &ebiten.DrawImageOptions{GeoM: g.PlayerTwo.position})
 	screen.DrawImage(g.PlayerOne.face, &ebiten.DrawImageOptions{GeoM: g.PlayerOne.position})
+	ebitenutil.DebugPrint(screen, g.MsgHistory)
+	if g.Message != "" {
+		ebitenutil.DebugPrintAt(screen, g.Message, 20, screenHeight-40)
+	}
 }
 
 func (g *Game) Layout(outsideWidth, outsideHeight int) (int, int) {
 	return screenWidth, screenHeight
 }
 
-func CreatePlayer() (Player, Player, int, error) {
-	fmt.Println("Pick a player [1 or 2]")
-	var choice int
-	_, err := fmt.Scanf("%d", &choice)
-	if err != nil {
-		log.Fatal(err)
+func repeatingKeyPressed(key ebiten.Key) bool {
+	const (
+		delay    = 30
+		interval = 3
+	)
+	d := inpututil.KeyPressDuration(key)
+	if d == 1 {
+		return true
 	}
+	if d >= delay && (d-delay)%interval == 0 {
+		return true
+	}
+	return false
+}
+
+func CreatePlayer(ws *websocket.Conn) (Player, Player, int, error) {
+	ok := make(chan bool)
+	start := make(chan bool)
+	ready := make(chan bool)
+	go func(k chan<- bool, q chan<- bool) {
+		for {
+			_, resp, err := ws.ReadMessage()
+			fmt.Println("RESPONSE:",string(resp))
+			if string(resp) == "ready" {
+				fmt.Println("Ready to launch")
+				q<- true
+				return
+			}
+			if err != nil {
+				fmt.Println(err)
+				return
+			}
+			if string(resp) == "taken" {
+				fmt.Println("Pick another")
+			}
+			if string(resp) == "ok" {
+				fmt.Println("Ok ok..")
+				k <- true
+			}
+		}
+	}(ok, start)
+	var err error
+	var choice int
+
+	go func(k <-chan bool, d chan<- bool) {
+		for {
+			select {
+			case <-k:
+				d <- true
+				return
+			case <-time.After(time.Second):
+				fmt.Println("Pick a player [1 or 2]")
+				_, err = fmt.Scanf("%d", &choice)
+				if err != nil {
+					log.Fatal(err)
+				}
+				str := strconv.Itoa(choice)
+				err = ws.WriteMessage(websocket.TextMessage, []byte("#choice:"+str))
+				if err != nil {
+					log.Fatal(err)
+				}
+			}
+		}
+	}(ok, ready)
+
+	<-ready
+
+	fmt.Println("Yes yes")
 	var player Player
 	var friend Player
 	if choice == 1 {
@@ -156,6 +249,8 @@ func CreatePlayer() (Player, Player, int, error) {
 		player.position.Translate(screenWidth-40, screenHeight-40)
 	}
 
+	fmt.Println("Waiting for other players...")
+	<- start
 	return player, friend, choice, err
 }
 
@@ -164,7 +259,8 @@ type jwt struct {
 }
 
 func getToken() (string, error) {
-	link := "https://tmp.mama.sh/api/login"
+	link := "http://localhost:8056/login"
+	//link := "https://tmp.mama.sh/api/login"
 	var jsonStr = []byte(`{"username":"martin", "password":"T3stpass!"}`)
 	req, err := http.NewRequest("POST", link, bytes.NewBuffer(jsonStr))
 	if err != nil {
@@ -196,8 +292,10 @@ func main() {
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt)
 
-	link := "tmp.mama.sh"
-	u := url.URL{Scheme: "wss", Host: link, Path: "/api/game"}
+	//link := "tmp.mama.sh"
+	//u := url.URL{Scheme: "wss", Host: link, Path: "/api/game"}
+	link := "localhost:8056"
+	u := url.URL{Scheme: "ws", Host: link, Path: "/game"}
 	log.Printf("connecting to %s", u.String())
 
 	header := http.Header{}
@@ -209,12 +307,16 @@ func main() {
 	}
 	defer c.Close()
 
-	player, friend, choice, err := CreatePlayer()
+	player, friend, choice, err := CreatePlayer(c)
+
+	//SETUP GAME INTERACTION HAS ENDED HERE AND REMAINING SETUP WILL BE MADE BEFORE EXECUTION
+
+
 	if err != nil {
 		log.Fatal(err)
 	}
 	ebiten.SetWindowSize(screenWidth, screenHeight)
-	ebiten.SetWindowTitle("Net Game")
+	ebiten.SetWindowTitle("Backend Game")
 	game := &Game{
 		PlayerOne: player,
 		PlayerTwo: friend,
@@ -239,22 +341,29 @@ func main() {
 				log.Println("read:", err)
 				return
 			}
-			fmt.Println("RECV:", move)
+			fmt.Println("RECV:", string(move))
 			if string(move) == left {
 				game.PlayerTwo.position.Translate(-1, 0)
 				game.PlayerTwo.face = game.PlayerTwo.left
-			} else if string(move) == down {
+			} else
+			if string(move) == down {
 				game.PlayerTwo.position.Translate(0, 1)
 				game.PlayerTwo.face = game.PlayerTwo.down
-			} else if string(move) == up {
+			} else
+			if string(move) == up {
 				game.PlayerTwo.position.Translate(0, -1)
 				game.PlayerTwo.face = game.PlayerTwo.up
-			} else if string(move) == right {
+			} else
+			if string(move) == right {
 				game.PlayerTwo.position.Translate(1, 0)
 				game.PlayerTwo.face = game.PlayerTwo.right
+			} else
+			if string(move[:3]) == "msg" {
+				game.MsgHistory += "\n" + string(move[5:])
 			}
 		}
 	}()
+
 
 	if err := ebiten.RunGame(game); err != nil {
 		log.Fatal(err)
