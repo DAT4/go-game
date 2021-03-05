@@ -3,8 +3,8 @@ package main
 import (
 	"fmt"
 	"github.com/gorilla/websocket"
-	"github.com/hajimehoshi/ebiten"
-	"github.com/hajimehoshi/ebiten/ebitenutil"
+	"github.com/hajimehoshi/ebiten/v2"
+	"github.com/hajimehoshi/ebiten/v2/ebitenutil"
 	"golang.org/x/image/colornames"
 )
 

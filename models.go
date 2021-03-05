@@ -2,7 +2,7 @@ package main
 
 import (
 	"github.com/gorilla/websocket"
-	"github.com/hajimehoshi/ebiten"
+	"github.com/hajimehoshi/ebiten/v2"
 )
 
 type Game struct {
