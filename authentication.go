@@ -12,8 +12,8 @@ type jwt struct {
 }
 
 func getToken() (string, error) {
-	//link := "http://localhost:8056/login"
-	link := "https://tmp.mama.sh/api/login"
+	link := "http://localhost:8056/login"
+	//link := "https://tmp.mama.sh/api/login"
 	var jsonStr = []byte(`{"username":"martin", "password":"T3stpass!"}`)
 	req, err := http.NewRequest("POST", link, bytes.NewBuffer(jsonStr))
 	if err != nil {
