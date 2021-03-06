@@ -7,12 +7,13 @@ import (
 
 type Game struct {
 	Players    map[byte]*Player
-	Movement   map[byte]func()[]byte
+	Movement   map[byte]func() []byte
 	You        byte
 	Conn       *websocket.Conn
 	State      int
 	Message    string
 	MsgHistory string
+	Channel    <-chan []byte
 }
 
 type Sprite struct {

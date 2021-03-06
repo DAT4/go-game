@@ -1,11 +1,12 @@
 package main
 
 import (
-	"fmt"
 	"github.com/hajimehoshi/ebiten/v2"
 	_ "image/png"
 	"log"
 )
+
+
 
 func main() {
 	c, err := setupConnection()
@@ -17,7 +18,9 @@ func main() {
 	ebiten.SetWindowSize(screenWidth, screenHeight)
 	ebiten.SetWindowTitle("Backend Game")
 
-	game := setup(c)
+	channel := make(chan []byte)
+
+	game := setup(c,channel)
 
 	go func() {
 		for {
@@ -26,7 +29,7 @@ func main() {
 				log.Println("read:", err)
 				return
 			}
-			fmt.Println("RECV:", string(move))
+			channel <- move
 		}
 	}()
 

@@ -42,6 +42,10 @@ func (g *Game) writeChat() {
 }
 
 func (g *Game) Update() error {
+	select {
+	case c := <- g.Channel:
+		g.Players[c[0]].options.GeoM.Apply(float64(c[1]),float64(c[2]))
+	}
 	if g.State == 0 {
 		g.MoveActualPlayer()
 	} else {

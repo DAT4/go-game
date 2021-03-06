@@ -43,8 +43,11 @@ func (g *Game) setupPlayerSprite(playerId byte) Sprite {
 	}
 }
 
-func setup(c *websocket.Conn) (g *Game) {
-	g = &Game{Conn: c}
+func setup(c *websocket.Conn, channel <- chan []byte) (g *Game) {
+	g = &Game{
+		Conn: c,
+		Channel: channel,
+	}
 
 	type message struct {
 		command  byte
