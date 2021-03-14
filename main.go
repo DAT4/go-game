@@ -15,12 +15,12 @@ func main() {
 	}
 	defer c.Close()
 
+
+
+	game := setup(c)
+
 	ebiten.SetWindowSize(screenWidth, screenHeight)
 	ebiten.SetWindowTitle("Backend Game")
-
-	channel := make(chan []byte)
-
-	game := setup(c,channel)
 
 	go func() {
 		for {
@@ -29,7 +29,7 @@ func main() {
 				log.Println("read:", err)
 				return
 			}
-			channel <- move
+			game.Players[move[0]].options.GeoM.Apply(float64(move[1]),float64(move[2]))
 		}
 	}()
 

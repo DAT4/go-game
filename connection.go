@@ -4,7 +4,6 @@ import (
 	"github.com/gorilla/websocket"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 )
@@ -22,13 +21,14 @@ func setupConnection() (c *websocket.Conn, err error){
 	//link := "tmp.mama.sh"
 	//u := url.URL{Scheme: "wss", Host: link, Path: "/api/game"}
 
-	link := "localhost:8056"
-	u := url.URL{Scheme: "ws", Host: link, Path: "/game"}
-	log.Printf("connecting to %s", u.String())
+	u := "ws://localhost:8056/join?peer=morten"
+	//u := "ws://localhost:8056/create"
+	//u := url.URL{Scheme: "ws", Host: link, Path: "/create"}
+	log.Printf("connecting to %s", u)
 
 	header := http.Header{}
 	header.Add("Authorization", "bearer "+token)
 
-	c, _, err = websocket.DefaultDialer.Dial(u.String(), header)
+	c, _, err = websocket.DefaultDialer.Dial(u, header)
 	return
 }

@@ -10,13 +10,13 @@ import (
 
 func (g *Game) MoveActualPlayer() {
 	if ebiten.IsKeyPressed(ebiten.KeyH) {
-		_ = g.Conn.WriteMessage(websocket.TextMessage, g.Movement[LEFT]())
+		_ = g.Conn.WriteMessage(websocket.BinaryMessage, g.Movement[LEFT]())
 	} else if ebiten.IsKeyPressed(ebiten.KeyJ) {
-		_ = g.Conn.WriteMessage(websocket.TextMessage, g.Movement[DOWN]())
+		_ = g.Conn.WriteMessage(websocket.BinaryMessage, g.Movement[DOWN]())
 	} else if ebiten.IsKeyPressed(ebiten.KeyK) {
-		_ = g.Conn.WriteMessage(websocket.TextMessage, g.Movement[UP]())
+		_ = g.Conn.WriteMessage(websocket.BinaryMessage, g.Movement[UP]())
 	} else if ebiten.IsKeyPressed(ebiten.KeyL) {
-		_ = g.Conn.WriteMessage(websocket.TextMessage, g.Movement[RIGHT]())
+		_ = g.Conn.WriteMessage(websocket.BinaryMessage, g.Movement[RIGHT]())
 	} else if repeatingKeyPressed(ebiten.KeySemicolon) {
 		g.State = TYPING
 	}
@@ -42,10 +42,6 @@ func (g *Game) writeChat() {
 }
 
 func (g *Game) Update() error {
-	select {
-	case c := <- g.Channel:
-		g.Players[c[0]].options.GeoM.Apply(float64(c[1]),float64(c[2]))
-	}
 	if g.State == 0 {
 		g.MoveActualPlayer()
 	} else {

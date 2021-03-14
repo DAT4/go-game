@@ -43,10 +43,9 @@ func (g *Game) setupPlayerSprite(playerId byte) Sprite {
 	}
 }
 
-func setup(c *websocket.Conn, channel <- chan []byte) (g *Game) {
+func setup(c *websocket.Conn) (g *Game) {
 	g = &Game{
 		Conn: c,
-		Channel: channel,
 	}
 
 	type message struct {
@@ -90,7 +89,7 @@ func setup(c *websocket.Conn, channel <- chan []byte) (g *Game) {
 	go func() {
 		var msg message
 		for {
-			err := g.Conn.ReadJSON(msg)
+			err := g.Conn.ReadJSON(&msg)
 			if err != nil {
 				fmt.Println(err)
 				return

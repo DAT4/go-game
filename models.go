@@ -13,7 +13,6 @@ type Game struct {
 	State      int
 	Message    string
 	MsgHistory string
-	Channel    <-chan []byte
 }
 
 type Sprite struct {
